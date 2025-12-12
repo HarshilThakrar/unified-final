@@ -9,13 +9,13 @@ import './App.css'
 
 // Pages
 const Home = () => (
-  <>
+  <div style={{ position: 'relative' }}>
     <Hero />
-    <WhatWeDo />
     <WhoWeAre />
+    <WhatWeDo />
     <Metrics />
     <ProjectsSection />
-  </>
+  </div>
 )
 
 const AboutUs = () => (

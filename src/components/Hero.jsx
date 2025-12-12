@@ -1,9 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './Hero.css';
 
 const Hero = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [animatedNumbers, setAnimatedNumbers] = useState({
+    years: 0,
+    projects: 0,
+    cities: 0,
+    engineers: 0
+  });
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const statsRef = useRef(null);
+  const heroRef = useRef(null);
 
   const slides = [
     {
@@ -40,8 +50,128 @@ const Hero = () => {
     return () => clearInterval(interval);
   }, [slides.length]);
 
+  // Scroll animation for numbers
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasAnimated) {
+            setHasAnimated(true);
+            animateNumbers();
+          }
+        });
+      },
+      {
+        threshold: 0.3,
+        rootMargin: '0px'
+      }
+    );
+
+    if (statsRef.current) {
+      observer.observe(statsRef.current);
+    }
+
+    return () => {
+      if (statsRef.current) {
+        observer.unobserve(statsRef.current);
+      }
+    };
+  }, [hasAnimated]);
+
+  const animateNumbers = () => {
+    const targets = {
+      years: 8,
+      projects: 380,
+      cities: 84,
+      engineers: 171
+    };
+
+    const duration = 2500; // 2.5 seconds for smoother animation
+    const steps = 120; // More steps for smoother animation
+    const stepDuration = duration / steps;
+
+    let currentStep = 0;
+    let startTime = null;
+
+    const animate = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Smooth easing function (easeOutCubic)
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+
+      setAnimatedNumbers({
+        years: Math.floor(targets.years * easeOutCubic),
+        projects: Math.floor(targets.projects * easeOutCubic),
+        cities: Math.floor(targets.cities * easeOutCubic),
+        engineers: Math.floor(targets.engineers * easeOutCubic)
+      });
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Ensure final values are set
+        setAnimatedNumbers({
+          years: targets.years,
+          projects: targets.projects,
+          cities: targets.cities,
+          engineers: targets.engineers
+        });
+      }
+    };
+
+    requestAnimationFrame(animate);
+  };
+
+  // Scroll-based slide animation for hero sections
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const heroElement = heroRef.current;
+          if (heroElement) {
+            const heroRect = heroElement.getBoundingClientRect();
+            const heroHeight = heroElement.offsetHeight;
+            const viewportHeight = window.innerHeight;
+            
+            // Calculate scroll progress within hero section
+            // 0 when hero is at top, 1 when hero is completely scrolled past
+            let progress = 0;
+            
+            if (heroRect.top < 0) {
+              // Hero is being scrolled past
+              const scrolledPast = Math.abs(heroRect.top);
+              progress = Math.min(scrolledPast / heroHeight, 1);
+            } else if (heroRect.top <= viewportHeight) {
+              // Hero is in view, calculate progress based on how much is visible
+              const visibleHeight = heroRect.bottom;
+              const totalScrollable = heroHeight + viewportHeight;
+              progress = Math.max(0, (viewportHeight - visibleHeight) / totalScrollable);
+            }
+            
+            setScrollProgress(progress);
+          }
+          
+          ticking = false;
+        });
+        
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Initial calculation
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   return (
-    <section className="hero">
+    <section className="hero" ref={heroRef}>
       {/* Background Video */}
       <video 
         autoPlay 
@@ -56,7 +186,13 @@ const Hero = () => {
 
       <div className="hero-container">
         {/* Left Side - Image Slider */}
-        <div className="hero-left">
+        <div 
+          className="hero-left"
+          style={{
+            transform: `translateX(-${scrollProgress * 100}%)`,
+            transition: 'transform 0.1s ease-out'
+          }}
+        >
           <div className="hero-image-card">
             {slides.map((slide, index) => (
               <div
@@ -69,12 +205,14 @@ const Hero = () => {
                   className="hero-main-image"
                 />
                 <div className="hero-image-content">
-                  <h1 className="hero-title">
-                    <span className="title-main">{slide.title}</span>
-                    <span className="highlight">{slide.highlight}</span>
-                  </h1>
-                  <div className="hero-description">
-                    <p>{slide.description}</p>
+                  <div className="hero-text-box">
+                    <h1 className="hero-title">
+                      {slide.title} <span className="highlight">{slide.highlight}</span>
+                    </h1>
+                    <div className="hero-description">
+                      <p>{slide.description}</p>
+                      <p className="hero-description-extra">Our approach blends advanced engineering, precise execution, and a deep understanding of modern architectural requirements.</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -83,28 +221,60 @@ const Hero = () => {
           </div>
         </div>
 
-        {/* Right Side - Info Cards */}
-        <div className="hero-right">
-          {/* Why Unified Card */}
-          <div className="info-card why-unified-card">
-            <h2 className="card-title">WHY UNIFIED?</h2>
-            <ul className="benefits-list">
-              <li>Faster slabs with verified PT design</li>
-              <li>Clean execution with trained teams</li>
-              <li>Engineering accuracy from start to finish</li>
-            </ul>
-            <div className="card-images">
-              <div className="card-image-placeholder"></div>
-              <div className="card-image-placeholder"></div>
+        {/* Right Side - Stats and Info */}
+        <div 
+          className="hero-right"
+          style={{
+            transform: `translateX(${scrollProgress * 100}%)`,
+            transition: 'transform 0.1s ease-out'
+          }}
+        >
+          {/* Statistics Section - White Card */}
+          <div className="hero-stats-section" ref={statsRef}>
+            <h2 className="hero-right-title">Transforming Landscapes With Expert Engineering</h2>
+            
+            {/* Statistics Grid */}
+            <div className="stats-grid">
+              <div className="stat-box">
+                <div className="stat-number">{animatedNumbers.years}+</div>
+                <div className="stat-label">Years of experience</div>
+              </div>
+              <div className="stat-box">
+                <div className="stat-number">{animatedNumbers.projects}+</div>
+                <div className="stat-label">Projects Done</div>
+              </div>
+              <div className="stat-box">
+                <div className="stat-number">{animatedNumbers.cities}+</div>
+                <div className="stat-label">Cities Of Work</div>
+              </div>
+              <div className="stat-box">
+                <div className="stat-number">{animatedNumbers.engineers}+</div>
+                <div className="stat-label">Structural Engineers & Architects</div>
+              </div>
             </div>
           </div>
 
-          {/* Explore PT Systems Card */}
-          <div className="info-card explore-card">
-            <h3 className="explore-title">EXPLORE OUR PT SYSTEMS</h3>
-            <Link to="/technology" className="btn-technology">
-              View Technology
-            </Link>
+          {/* Explore PT Systems Section - Light Blue Card */}
+          <div className="explore-section">
+            <div className="explore-images">
+              <div className="explore-image">
+                <img src="/assets/1.jpg" alt="PT System" />
+              </div>
+              <div className="explore-image">
+                <img src="/assets/construction-site.jpg" alt="PT System" />
+              </div>
+            </div>
+            <div className="explore-content">
+              <h3 className="explore-title">EXPLORE OUR PT SYSTEMS</h3>
+              <Link to="/technology" className="btn-technology">
+                Visit Technology
+                <span className="btn-arrow">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

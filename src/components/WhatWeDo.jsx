@@ -1,9 +1,42 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './WhatWeDo.css';
 
 const WhatWeDo = () => {
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+          }
+        });
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '0px'
+      }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => {
+      if (sectionRef.current) {
+        observer.unobserve(sectionRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <section className="what-we-do">
+    <section 
+      ref={sectionRef}
+      className={`what-we-do ${isVisible ? 'visible' : ''}`}
+    >
       <div className="what-we-do-container">
         <h2 className="section-title">WHAT WE DO?</h2>
         
